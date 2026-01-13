@@ -49,6 +49,11 @@ void hashmap_insert_cuda(
     const torch::Tensor& keys,
     const torch::Tensor& values
 ) {
+    TORCH_CHECK(hashmap_keys.is_cuda(), "Hashmap keys must be on GPU.");
+    TORCH_CHECK(hashmap_values.is_cuda(), "Hashmap values must be on GPU.");
+    TORCH_CHECK(keys.is_cuda(), "Keys must be on GPU.");
+    TORCH_CHECK(values.is_cuda(), "Values must be on GPU.");
+
     if (hashmap_keys.dtype() == torch::kUInt32 && hashmap_values.dtype() == torch::kUInt32) {
         TORCH_CHECK(keys.dtype() == torch::kUInt32, "keys must be uint32");
         TORCH_CHECK(values.dtype() == torch::kUInt32, "valuess must be uint32");
@@ -112,6 +117,10 @@ torch::Tensor hashmap_lookup_cuda(
     const torch::Tensor& keys
 ) {
     auto output = torch::empty({keys.size(0)}, torch::dtype(hashmap_values.dtype()).device(hashmap_values.device()));
+
+    TORCH_CHECK(hashmap_keys.is_cuda(), "Hashmap Keys must be on GPU.");
+    TORCH_CHECK(hashmap_values.is_cuda(), "Hashmap Values must be on GPU.");
+    TORCH_CHECK(keys.is_cuda(), "Keys must be on GPU.");
 
     if (hashmap_keys.dtype() == torch::kUInt32 && hashmap_values.dtype() == torch::kUInt32) {
         TORCH_CHECK(keys.dtype() == torch::kUInt32, "Keys must be uint32");
