@@ -9,7 +9,7 @@
 /**
  * Lookup sparse submanifold 2D convolution with hashmap.
  * @param N                 number of elements in the hashmap.
- * @param M                 number of 2D coordinates.
+ * @param M                 number of 3D coordinates.
  * @param W                 width dimension.
  * @param H                 height dimension.
  * @param D                 depth dimension.
@@ -20,7 +20,7 @@
  * @param hashmap_keys      [N] uint32/uint64 tensor containing the hashmap keys.
  * @param hashmap_values    [N] uint32 tensor containing the hashmap values.
  * @param coords            [M, 4] int32 tensor containing the keys to be looked up.
- * @param neighbor          [M, A] uint32 tensor containing the submanifold neighbor map.
+ * @param neighbor          [M, V] uint32 tensor containing the submanifold neighbor map.
  */
 template <typename K>
 static __global__ void hashmap_lookup_submanifold_conv_neighbor_map_cuda_naive(
