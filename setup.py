@@ -41,6 +41,7 @@ setup(
             name="sparseconv.kernels.cuda",
             sources=[
                 "src/sparseconv/kernels/cuda/hash/hash.cu",
+                "src/sparseconv/kernels/cuda/neighbor_map/neighbor_map.cu",
                 "src/sparseconv/kernels/cuda/ext.cpp"
             ],
             extra_compile_args=extra_compile_args
