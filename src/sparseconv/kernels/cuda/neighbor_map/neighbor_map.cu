@@ -59,7 +59,7 @@ static __global__ void hashmap_lookup_submanifold_conv_neighbor_map_cuda_naive(
             int ky = y + v / Kd % Kh * Dh;
             int kz = z + v % Kd * Dd;
             
-            if (kx >= 0 && kx < W && ky >= 0 && ky < H && kz >= 0 && kz <= D) {
+            if (kx >= 0 && kx < W && ky >= 0 && ky < H && kz >= 0 && kz < D) {
                 size_t flat_idx = (size_t)b * W * H * D + (size_t)kx * H * D + (size_t)ky * D + kz;
                 K key = static_cast<K>(flat_idx);
                 value = linear_probing_lookup(hashmap_keys, hashmap_values, key, N);
