@@ -17,6 +17,9 @@
  * @param Kw                kernel width dimension.
  * @param Kh                kernel height dimension.
  * @param Kd                kernel depth dimension.
+ * @param Dw                dilation of width.
+ * @param Dh                dilation of height.
+ * @param Dd                dilation of depth.
  * @param hashmap_keys      [N] uint32/uint64 tensor containing the hashmap keys.
  * @param hashmap_values    [N] uint32 tensor containing the hashmap values.
  * @param coords            [M, 4] int32 tensor containing the keys to be looked up.
@@ -29,6 +32,7 @@ static __global__ void hashmap_lookup_submanifold_conv_neighbor_map_cuda_naive(
     int W, int H, int D,
     int V,
     int Kw, int Kh, int Kd,
+    int Dw, int Dh, int Dd,
     const K* __restrict__ hashmap_keys,
     const uint32_t* __restrict__ hashmap_values,
     const int32_t* coords,
@@ -40,9 +44,9 @@ static __global__ void hashmap_lookup_submanifold_conv_neighbor_map_cuda_naive(
     if (idx < M) {
         int4 coord = reinterpret_cast<const int4*>(coords)[idx];
         int b = coord.x;
-        int x = coord.y - Kw / 2;   // Center the kernel
-        int y = coord.z - Kh / 2;
-        int z = coord.w - Kd / 2;
+        int x = coord.y - Kw / 2 * Dw;   // Center the kernel
+        int y = coord.z - Kh / 2 * Dh;
+        int z = coord.w - Kd / 2 * Dd;
         int KhKd = Kh * Kd;
 
         int v = thread_id % V;      // offset within the kernel
@@ -51,9 +55,9 @@ static __global__ void hashmap_lookup_submanifold_conv_neighbor_map_cuda_naive(
         if (v == V / 2) {
             value = idx;
         } else {
-            int kx = x + v / KhKd;
-            int ky = y + v / Kd % Kh;
-            int kz = z + v % Kd;
+            int kx = x + v / KhKd * Dw;
+            int ky = y + v / Kd % Kh * Dh;
+            int kz = z + v % Kd * Dd;
             
             if (kx >= 0 && kx < W && ky >= 0 && ky < H && kz >= 0 && kz <= D) {
                 size_t flat_idx = (size_t)b * W * H * D + (size_t)kx * H * D + (size_t)ky * D + kz;
@@ -73,7 +77,8 @@ torch::Tensor hashmap_build_submanifold_conv_neighbor_map_cuda_naive(
     torch::Tensor& hashmap_values,
     const torch::Tensor& coords,
     int W, int H, int D,
-    int Kw, int Kh, int Kd
+    int Kw, int Kh, int Kd,
+    int Dw, int Dh, int Dd
 ) {
     int V = Kw * Kh * Kd;
 
@@ -100,6 +105,7 @@ torch::Tensor hashmap_build_submanifold_conv_neighbor_map_cuda_naive(
             W, H, D,
             V,
             Kw, Kh, Kd,
+            Dw, Dh, Dd,
             hashmap_keys.data_ptr<uint32_t>(),
             hashmap_values.data_ptr<uint32_t>(),
             coords.data_ptr<int32_t>(),
@@ -115,6 +121,7 @@ torch::Tensor hashmap_build_submanifold_conv_neighbor_map_cuda_naive(
             W, H, D,
             V,
             Kw, Kh, Kd,
+            Dw, Dh, Dd,
             hashmap_keys.data_ptr<uint64_t>(),
             hashmap_values.data_ptr<uint32_t>(),
             coords.data_ptr<int32_t>(),
