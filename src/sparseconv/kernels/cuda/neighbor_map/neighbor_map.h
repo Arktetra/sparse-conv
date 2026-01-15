@@ -1,9 +1,9 @@
 #pragma once
 #include <torch/extension.h>
 
-torch::Tensor hashmap_lookup_submanifold_conv_neighbor_map_cuda(
-    const torch::Tensor& hashmap_keys,
-    const torch::Tensor& hashmap_values,
+torch::Tensor hashmap_build_submanifold_conv_neighbor_map_cuda_naive(
+    torch::Tensor& hashmap_keys,
+    torch::Tensor& hashmap_values,
     const torch::Tensor& coords,
     int W,
     int H,
