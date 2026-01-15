@@ -38,7 +38,7 @@ static __global__ void hashmap_lookup_submanifold_conv_neighbor_map_cuda_naive(
     // int A_half = A / 2 + 1;
     size_t idx = thread_id / V;
     if (idx < M) {
-        int3 coord = reinterpret_cast<const int3*>(coords)[idx];
+        int4 coord = reinterpret_cast<const int4*>(coords)[idx];
         int b = coord.x;
         int x = coord.y - Kw / 2;   // Center the kernel
         int y = coord.z - Kh / 2;
@@ -53,12 +53,12 @@ static __global__ void hashmap_lookup_submanifold_conv_neighbor_map_cuda_naive(
         } else {
             int kx = x + v / KhKd;
             int ky = y + v / Kd % Kh;
-            int Kz = z + v % Kd;
+            int kz = z + v % Kd;
             
             if (kx >= 0 && kx < W && ky >= 0 && ky < H && kz >= 0 && kz <= D) {
                 size_t flat_idx = (size_t)b * W * H * D + (size_t)kx * H * D + (size_t)ky * D + kz;
                 K key = static_cast<K>(flat_idx);
-                value = linear_probing_lookup(hashmap_values, hashmap_keys, key, N);
+                value = linear_probing_lookup(hashmap_keys, hashmap_values, key, N);
             }
         }
 
@@ -69,8 +69,8 @@ static __global__ void hashmap_lookup_submanifold_conv_neighbor_map_cuda_naive(
 }
 
 torch::Tensor hashmap_build_submanifold_conv_neighbor_map_cuda_naive(
-    const torch::Tensor& hashmap_keys,
-    const torch::Tensor& hashmap_values,
+    torch::Tensor& hashmap_keys,
+    torch::Tensor& hashmap_values,
     const torch::Tensor& coords,
     int W, int H, int D,
     int Kw, int Kh, int Kd
@@ -121,4 +121,6 @@ torch::Tensor hashmap_build_submanifold_conv_neighbor_map_cuda_naive(
             neighbor.data_ptr<uint32_t>()
         );
     }
+
+    return neighbor;
 }
