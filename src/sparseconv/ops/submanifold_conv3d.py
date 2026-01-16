@@ -97,6 +97,61 @@ class SubMConv3dFunction(Function):
         return output
     
     @staticmethod
+    def _sparse_submanifold_conv_backward(
+        grad_output: torch.Tensor,
+        feats: torch.Tensor,
+        neighbor_cache: SubMConv3dNeighborCache,
+        weight: torch.Tensor,
+        bias: Optional[torch.Tensor] = None,
+        algorithm: Algorithm = Algorithm.EXPLICIT_GEMM
+    ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]:
+        N = feats.shape[0]
+        Co, Kw, Kh, Kd, Ci = weight.shape
+        V = Kw * Kh * Kd
+
+        if algorithm == Algorithm.EXPLICIT_GEMM:
+            neighbor_map = neighbor_cache["neighbor_map"]
+
+            if feats.requires_grad:
+                im2col = torch.zeros((N * V, Co), dtype=feats.dtype, device=feats.device)
+                inv_neighbor_map = torch.flip(neighbor_map, [1])
+                mask = inv_neighbor_map.view(-1) != 0xffffffff
+                im2col[mask] = grad_output[inv_neighbor_map.view(-1).long()[mask]]
+                im2col = im2col.view(N, V * Co)
+
+                grad_input = torch.mm(im2col, weight.view(Co, V, Ci).transpose(0, 1).reshape(V * Co, Ci))
+            else:
+                grad_input = None
+            
+            if weight.requires_grad:
+                im2col = torch.zeros((N * V, Ci), dtype=weight.dtype, device=weight.device)
+                mask = neighbor_map.view(-1) != 0xffffffff
+                im2col[mask] = feats[neighbor_map.view(-1).long()[mask]]
+                im2col = im2col.view(N, V * Ci)
+
+                grad_weight = torch.mm(im2col.t(), grad_output.view(N, -1)).view(V, Ci, Co).permute(2, 0, 1).contiguous().view(Co, Kw, Kh, Kd, Ci)
+            else:
+                grad_weight = None
+
+            if bias is not None and bias.requires_grad:
+                grad_bias = grad_output.sum(dim=0)
+            else:
+                grad_bias = None
+
+        elif algorithm == Algorithm.IMPLICIT_GEMM:
+            pass
+        elif algorithm == Algorithm.IMPLICIT_GEMM_SPLITK:
+            pass
+        elif algorithm == Algorithm.MASKED_IMPLICIT_GEMM:
+            pass
+        elif algorithm == Algorithm.MASKED_IMPLICIT_GEMM_SPLITK:
+            pass
+        else:
+            raise ValueError(f"Unsupported algorithm {algorithm}.")
+        
+        return grad_input, grad_weight, grad_bias
+    
+    @staticmethod
     def forward(
         ctx,
         feats: torch.Tensor,
@@ -121,6 +176,28 @@ class SubMConv3dFunction(Function):
         ctx.neighbor_cache = neighbor_cache
 
         return output, neighbor_cache
+    
+    @staticmethod
+    def backward(
+        ctx, 
+        grad_output: torch.Tensor,
+        algorithm: Algorithm = Algorithm.EXPLICIT_GEMM
+    ):
+        feats, weight, bias = ctx.saved_tensors
+        neighbor_cache = ctx.neighbor_cache
+
+        grad_input, grad_weight, grad_bias = SubMConv3dFunction._sparse_submanifold_conv_backward(
+            grad_output, feats, neighbor_cache, weight, bias, algorithm
+        )
+
+        if not feats.requires_grad:
+            grad_input = None
+        if not weight.requires_grad:
+            grad_weight = None
+        if not bias.requires_grad:
+            grad_bias = None
+
+        return grad_input, None, None, None, grad_weight, grad_bias, None
 
 def sparse_submanifold_conv3d(
     feats: torch.Tensor,
