@@ -302,6 +302,69 @@ torch::Tensor hashmap_lookup_3d_cuda(
 }
 
 template<typename K, typename V>
+static __global__ void hashmap_insert_2d_idx_as_val_cuda_kernel(
+    const size_t N,
+    const size_t M,
+    int W, int H,
+    K* __restrict__ hashmap_keys,
+    V* __restrict__ hashmap_values,
+    const int32_t* __restrict__ keys
+) {
+    size_t thread_id = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (thread_id < M) {
+        int3 coord = reinterpret_cast<const int3*>(keys)[thread_id];
+        int b = coord.x;
+        int x = coord.y;
+        int y = coord.z;
+
+        size_t flat_idx = (size_t)b * W * H + (size_t)x * H + y;
+        K key = static_cast<K>(flat_idx);
+        V value = static_cast<V>(thread_id)
+        linear_probing_insert(hashmap_keys, hashmap_values, key, value, N);
+    }
+}
+
+template<typename K, typename V>
+void dispatch_hashmap_insert_2d_idx_as_val_cuda(
+    torch::Tensor& hashmap_keys,
+    torch::Tensor& hashmap_values,
+    const torch::Tensor& keys,
+    int W, int H
+) {
+    hashmap_insert_2d_idx_as_val_cuda_kernel<<<
+        (keys.size(0) + BLOCK_SIZE - 1) / BLOCK_SIZE,
+        BLOCK_SIZE
+    >>>(
+        hashmap_keys.size(0),
+        keys.size(0),
+        W, H,
+        hashmap_keys.data_ptr<K>(),
+        hashmap_values.data_ptr<V>(),
+        keys.data_ptr<int32_t>()
+    );
+}
+
+void hashmap_insert_2d_idx_as_val_cuda(
+    torch::Tensor& hashmap_keys,
+    torch::Tensor& hashmap_values,
+    const torch::Tensor& keys,
+    int W, int H
+) {
+    if (hashmap_keys.dtype() == torch::kUInt32 && hashmap_values.dtype() == torch::kUInt32) {
+        dispatch_hashmap_insert_2d_idx_as_val_cuda<uint32_t, uint32_t>(hashmap_keys, hashmap_values, keys, W, H);
+    } else if (hashmap_keys.dtype() == torch::kUInt32 && hashmap_values.dtype() == torch::kUInt64) {
+        dispatch_hashmap_insert_2d_idx_as_val_cuda<uint32_t, uint64_t>(hashmap_keys, hashmap_values, keys, W, H);
+    } else if (hashmap_keys.dtype() == torch::kUInt64 && hashmap_values.dtype() == torch::kUInt32) {
+        dispatch_hashmap_insert_2d_idx_as_val_cuda<uint64_t, uint32_t>(hashmap_keys, hashmap_values, keys, W, H);
+    } else if (hashmap_keys.dtype() == torch::kUInt64 && hashmap_values.dtype() == torch::kUInt64) {
+        dispatch_hashmap_insert_2d_idx_as_val_cuda<uint64_t, uint64_t>(hashmap_keys, hashmap_values, keys, W, H);
+    } else {
+        TORCH_CHECK(false, "Unsupported data type");
+    }
+}
+
+template<typename K, typename V>
 static __global__ void hashmap_insert_3d_idx_as_val_cuda_kernel(
     const size_t N,
     const size_t M,
