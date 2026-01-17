@@ -320,7 +320,7 @@ static __global__ void hashmap_insert_2d_idx_as_val_cuda_kernel(
 
         size_t flat_idx = (size_t)b * W * H + (size_t)x * H + y;
         K key = static_cast<K>(flat_idx);
-        V value = static_cast<V>(thread_id)
+        V value = static_cast<V>(thread_id);
         linear_probing_insert(hashmap_keys, hashmap_values, key, value, N);
     }
 }
