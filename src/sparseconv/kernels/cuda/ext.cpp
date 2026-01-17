@@ -5,5 +5,6 @@
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     m.def("hashmap_insert_cuda", &hashmap_insert_cuda);
     m.def("hashmap_lookup_cuda", &hashmap_lookup_cuda);
+    m.def("hashmap_build_submanifold_conv2d_neighbor_map_cuda_naive", &hashmap_build_submanifold_conv2d_neighbor_map_cuda_naive);
     m.def("hashmap_build_submanifold_conv_neighbor_map_cuda_naive", &hashmap_build_submanifold_conv_neighbor_map_cuda_naive);
 }
