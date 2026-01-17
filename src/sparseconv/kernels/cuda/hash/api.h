@@ -35,6 +35,14 @@ torch::Tensor hashmap_lookup_3d_cuda(
     int D
 );
 
+void hashmap_insert_2d_idx_as_val_cuda(
+    torch::Tensor& hashmap_keys,
+    torch::Tensor& hashmap_values,
+    const torch::Tensor& coords,
+    int W,
+    int H
+);
+
 void hashmap_insert_3d_idx_as_val_cuda(
     torch::Tensor& hashmap_keys,
     torch::Tensor& hashmap_values,
