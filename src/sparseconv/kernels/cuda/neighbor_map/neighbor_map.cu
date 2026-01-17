@@ -6,8 +6,112 @@
 #include "../hash/api.h"
 #include "../hash/hash.cuh"
 
+
+template<typename K>
+static __global__ void hashmap_lookup_submanifold_conv2d_neighbor_map_cuda_naive(
+    const size_t N,
+    const size_t M,
+    int W, int H, int A,
+    int Kw, int Kh,
+    int Dw, int Dh,
+    const K* __restrict__ hashmap_keys,
+    const uint32_t* __restrict__ hashmap_values,
+    const int32_t* coords,
+    uint32_t* neighbor
+) {
+    size_t thread_id = blockIdx.x * blockDim.x + threadIdx.x;
+
+    size_t idx = thread_id / A;
+
+    if (idx < M) {
+        int3 coord = reinterpret_cast<const int3*>(coords)[idx];
+        int b = coord.x;
+        int x = coord.y - Kw / 2 * Dw;
+        int y = coord.z - Kh / 2 * Dh;
+
+        int a = thread_id % A;
+
+        uint32_t value = std::numeric_limits<uint32_t>::max();
+
+        if (a == A / 2) {
+            value = idx;
+        } else {
+            int kx = x + a / Kh % Kw * Dw;
+            int ky = y + a % Kh * Dh;
+
+            if (kx >= 0 && kx < W && ky >= 0 && ky < H) {
+                size_t flat_idx = (size_t)b * W * H + (size_t)kx * H + ky;
+                K key = static_cast<K>(flat_idx);
+                value = linear_probing_lookup(hashmap_keys, hashmap_values, key, N);
+            }
+        }
+
+        if (value != std::numeric_limits<uint32_t>::max()) {
+            neighbor[idx * A + a] = value;
+        }
+    }
+}
+
+torch::Tensor hashmap_build_submanifold_conv2d_neighbor_map_cuda_naive(
+    torch::Tensor& hashmap_keys,
+    torch::Tensor& hashmap_values,
+    const torch::Tensor& coords,
+    int W, int H,
+    int Kw, int Kh,
+    int Dw, int Dh
+) {
+    int A = Kw * Kh;
+
+    hashmap_insert_2d_idx_as_val_cuda(
+        hashmap_keys,
+        hashmap_values,
+        coords,
+        W, H
+    );
+
+    auto neighbor = torch::full(
+        {coords.size(0), A},
+        std::numeric_limits<uint32_t>::max(),
+        torch::dtype(torch::kUInt32).device(hashmap_keys.device())
+    );
+
+    if (hashmap_keys.dtype() == torch::kUInt32) {
+        hashmap_lookup_submanifold_conv2d_neighbor_map_cuda_naive<<<
+            (coords.size(0) * A + BLOCK_SIZE - 1) / BLOCK_SIZE,
+            BLOCK_SIZE
+        >>>(
+            hashmap_keys.size(0),
+            coords.size(0),
+            W, H, A,
+            Kw, Kh, 
+            Dw, Dh,
+            hashmap_keys.data_ptr<uint32_t>(),
+            hashmap_values.data_ptr<uint32_t>(),
+            coords.data_ptr<int32_t>(),
+            neighbor.data_ptr<uint32_t>()
+        );
+    } else if (hashmap_keys.dtype() == torch::kUInt64) {
+        hashmap_lookup_submanifold_conv2d_neighbor_map_cuda_naive<<<
+            (coords.size(0) * A + BLOCK_SIZE - 1) / BLOCK_SIZE,
+            BLOCK_SIZE
+        >>>(
+            hashmap_keys.size(0),
+            coords.size(0),
+            W, H, A,
+            Kw, Kh, 
+            Dw, Dh,
+            hashmap_keys.data_ptr<uint64_t>(),
+            hashmap_values.data_ptr<uint32_t>(),
+            coords.data_ptr<int32_t>(),
+            neighbor.data_ptr<uint32_t>()
+        );
+    }
+
+    return neighbor;
+}
+
 /**
- * Lookup sparse submanifold 2D convolution with hashmap.
+ * Lookup sparse submanifold 3D convolution with hashmap.
  * @param N                 number of elements in the hashmap.
  * @param M                 number of 3D coordinates.
  * @param W                 width dimension.
