@@ -7,7 +7,6 @@ torch::Tensor hashmap_build_submanifold_conv2d_neighbor_map_cuda_naive(
     const torch::Tensor& coords,
     int W,
     int H,
-    int A,
     int Kw,
     int Kh,
     int Dw,
