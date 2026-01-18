@@ -4,6 +4,7 @@ import torch
 from torch.autograd import Function
 
 from sparseconv.kernels import cuda
+from sparseconv.kernels.triton.implicit_gemm import sparse_submanifold_conv_fwd_implicit_gemm
 from sparseconv.ops.utils import init_hashmap
 
 class Algorithm:
@@ -84,7 +85,12 @@ class SubMConv3dFunction(Function):
             else:
                 output = torch.mm(im2col, weights)
         elif algorithm == Algorithm.IMPLICIT_GEMM:
-            pass
+            output = sparse_submanifold_conv_fwd_implicit_gemm(
+                feats,
+                weight.reshape(Co, Kw * Kh * Kd, Ci),
+                bias,
+                neighbor=neighbor_cache.neighbor_map
+            )
         elif algorithm == Algorithm.IMPLICIT_GEMM_SPLITK:
             pass
         elif algorithm == Algorithm.MASKED_IMPLICIT_GEMM:
